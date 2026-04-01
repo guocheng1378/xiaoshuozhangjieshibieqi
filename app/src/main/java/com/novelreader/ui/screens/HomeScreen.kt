@@ -24,6 +24,7 @@ import com.novelreader.data.repository.BookRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -416,15 +417,22 @@ private suspend fun importFolder(
     bookDir.mkdirs()
 
     suspend fun scanAndImport(dirUri: Uri, depth: Int = 0) {
-        if (depth > 8) return
-        val dir = androidx.documentfile.provider.DocumentFile.fromTreeUri(context, dirUri) ?: return
-        for (file in dir.listFiles()) {
-            if (file.isDirectory) {
-                scanAndImport(file.uri, depth + 1)
-            } else if (file.canRead()) {
-                val name = file.name ?: continue
-                val lower = name.lowercase()
-                try {
+        if (depth > 5) return
+        val dir = try {
+            androidx.documentfile.provider.DocumentFile.fromTreeUri(context, dirUri)
+        } catch (_: Exception) { null } ?: return
+
+        val children = try {
+            dir.listFiles()
+        } catch (_: Exception) { return }
+
+        for (file in children) {
+            try {
+                if (file.isDirectory) {
+                    scanAndImport(file.uri, depth + 1)
+                } else if (file.canRead()) {
+                    val name = file.name ?: continue
+                    val lower = name.lowercase()
                     if (lower.endsWith(".zip")) {
                         context.contentResolver.openInputStream(file.uri)?.use { zipInput ->
                             val entries = ZipParser.scan(zipInput)
@@ -452,12 +460,14 @@ private suspend fun importFolder(
                             firstFile = localFile.absolutePath to name
                         }
                     }
-                } catch (_: Exception) {}
-            }
+                }
+            } catch (_: Exception) {}
         }
     }
 
-    scanAndImport(folderUri)
+    withTimeoutOrNull(30_000) {
+        scanAndImport(folderUri)
+    }
 
     firstFile?.let { (path, name) ->
         withContext(Dispatchers.Main) { onBookClick(path, name) }
