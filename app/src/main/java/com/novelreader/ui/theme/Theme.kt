@@ -55,10 +55,15 @@ fun NovelReaderTheme(
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
+            // Set status bar and nav bar colors to match surface
             window.statusBarColor = Color.Transparent.toArgb()
+            window.navigationBarColor = Color.Transparent.toArgb()
             WindowCompat.getInsetsController(window, view).apply {
                 isAppearanceLightStatusBars = !darkTheme
+                isAppearanceLightNavigationBars = !darkTheme
             }
+            // Enable edge-to-edge
+            WindowCompat.setDecorFitsSystemWindows(window, false)
         }
     }
 

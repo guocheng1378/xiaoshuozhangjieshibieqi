@@ -3,15 +3,12 @@ package com.novelreader
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.*
-import androidx.lifecycle.lifecycleScope
 import com.novelreader.data.repository.BookRepository
 import com.novelreader.navigation.NavGraph
 import com.novelreader.ui.theme.NovelReaderTheme
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
@@ -19,7 +16,6 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
         repository = BookRepository(applicationContext)
 
         setContent {

@@ -42,27 +42,32 @@ fun FloatingToolbar(
 
     Box(
         modifier = modifier
-            .fillMaxSize()
-            .padding(bottom = 24.dp),
+            .fillMaxSize(),
         contentAlignment = Alignment.BottomCenter
     ) {
         Surface(
             modifier = Modifier
+                .padding(bottom = 16.dp, start = 24.dp, end = 24.dp)
                 .offset(y = offsetY)
-                .graphicsLayer {
+                .then(
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                        renderEffect = android.graphics.RenderEffect
-                            .createBlurEffect(12f, 12f, android.graphics.Shader.TileMode.CLAMP)
-                            .asComposeRenderEffect()
+                        Modifier.graphicsLayer {
+                            renderEffect = android.graphics.RenderEffect
+                                .createBlurEffect(12f, 12f, android.graphics.Shader.TileMode.CLAMP)
+                                .asComposeRenderEffect()
+                        }
+                    } else {
+                        Modifier
                     }
-                },
+                ),
             shape = RoundedCornerShape(28.dp),
-            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
-            shadowElevation = 8.dp
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            shadowElevation = 12.dp,
+            tonalElevation = 8.dp
         ) {
             Row(
                 modifier = Modifier
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .padding(horizontal = 20.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -73,7 +78,7 @@ fun FloatingToolbar(
                         onFileClick()
                     }
                 )
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(8.dp))
                 ToolbarButton(
                     icon = { Icon(Icons.Default.ContentCopy, contentDescription = "复制") },
                     onClick = {
@@ -81,7 +86,7 @@ fun FloatingToolbar(
                         onCopyClick()
                     }
                 )
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(8.dp))
                 ToolbarButton(
                     icon = { Icon(Icons.Default.BookmarkBorder, contentDescription = "书签") },
                     onClick = {
@@ -89,7 +94,7 @@ fun FloatingToolbar(
                         onBookmarkClick()
                     }
                 )
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(8.dp))
                 ToolbarButton(
                     icon = { Icon(Icons.Default.Palette, contentDescription = "主题") },
                     onClick = {
@@ -97,7 +102,7 @@ fun FloatingToolbar(
                         onThemeClick()
                     }
                 )
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(8.dp))
                 ToolbarButton(
                     icon = { Icon(Icons.Default.Settings, contentDescription = "设置") },
                     onClick = {

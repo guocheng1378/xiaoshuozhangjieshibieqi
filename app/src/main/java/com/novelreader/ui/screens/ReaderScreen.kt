@@ -8,8 +8,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Title
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -18,7 +21,6 @@ import com.novelreader.data.model.Chapter
 import com.novelreader.data.parser.EpubParser
 import com.novelreader.data.parser.TxtParser
 import com.novelreader.data.repository.BookRepository
-import com.novelreader.ui.components.ChapterItem
 import com.novelreader.ui.components.CopyToast
 import com.novelreader.ui.components.FloatingToolbar
 import com.novelreader.util.ClipboardHelper
@@ -114,29 +116,17 @@ fun ReaderScreen(
         ) {
             if (chapters.isEmpty()) {
                 CircularProgressIndicator(
-                    modifier = Modifier
-                        .wrapContentSize()
+                    modifier = Modifier.align(Alignment.Center)
                 )
             } else {
                 LazyColumn(
                     state = listState,
-                    contentPadding = PaddingValues(vertical = 8.dp)
+                    contentPadding = PaddingValues(
+                        top = 8.dp,
+                        bottom = 80.dp // Extra space for floating toolbar
+                    )
                 ) {
                     items(chapters) { chapter ->
-                        ChapterItem(
-                            chapter = chapter,
-                            onCopyTitle = {
-                                ClipboardHelper.copyTitle(context, chapter.title)
-                                toastMessage = "标题已复制"
-                                toastVisible = true
-                            },
-                            onCopyContent = {
-                                ClipboardHelper.copyContent(context, chapter.content, chapter.wordCount)
-                                toastMessage = "内容已复制（约${chapter.wordCount}字）"
-                                toastVisible = true
-                            }
-                        )
-
                         // Chapter content display
                         Column(
                             modifier = Modifier
@@ -160,6 +150,43 @@ fun ReaderScreen(
                                 ),
                                 color = MaterialTheme.colorScheme.onSurface
                             )
+                        }
+
+                        // Copy actions row
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            FilledTonalButton(
+                                onClick = {
+                                    ClipboardHelper.copyTitle(context, chapter.title)
+                                    toastMessage = "标题已复制"
+                                    toastVisible = true
+                                },
+                                colors = ButtonDefaults.filledTonalButtonColors(
+                                    containerColor = MaterialTheme.colorScheme.secondaryContainer
+                                )
+                            ) {
+                                Icon(Icons.Default.Title, null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("复制标题")
+                            }
+                            FilledTonalButton(
+                                onClick = {
+                                    ClipboardHelper.copyContent(context, chapter.content, chapter.wordCount)
+                                    toastMessage = "内容已复制（约${chapter.wordCount}字）"
+                                    toastVisible = true
+                                },
+                                colors = ButtonDefaults.filledTonalButtonColors(
+                                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                                )
+                            ) {
+                                Icon(Icons.Default.ContentCopy, null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("复制全文 (${chapter.wordCount}字)")
+                            }
                         }
 
                         Divider(
