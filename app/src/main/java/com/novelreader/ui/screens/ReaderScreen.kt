@@ -27,6 +27,7 @@ import com.novelreader.util.ClipboardHelper
 import com.novelreader.util.EncodingDetector
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -111,15 +112,15 @@ fun ReaderScreen(
         isLoading = false
     }
 
-    // Save reading progress periodically
-    LaunchedEffect(listState.firstVisibleItemIndex) {
-        if (chapters.isNotEmpty()) {
-            repository.saveReadingProgress(
-                filePath = filePath,
-                chapterIndex = listState.firstVisibleItemIndex,
-                scrollOffset = listState.firstVisibleItemScrollOffset
-            )
-        }
+    // Save reading progress with debounce (2s)
+    LaunchedEffect(Unit) {
+        snapshotFlow { listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset }
+            .debounce(2000L)
+            .collect { (index, offset) ->
+                if (chapters.isNotEmpty()) {
+                    repository.saveReadingProgress(filePath, index, offset)
+                }
+            }
     }
 
     Scaffold(
