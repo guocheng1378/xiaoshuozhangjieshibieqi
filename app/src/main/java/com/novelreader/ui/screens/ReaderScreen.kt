@@ -30,6 +30,8 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
+import java.io.FileInputStream
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -58,25 +60,46 @@ fun ReaderScreen(
     val openDocumentLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
-        uri?.let {
+        if (uri == null) return@rememberLauncherForActivityResult
+        try {
+            context.contentResolver.takePersistableUriPermission(
+                uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION
+            )
+        } catch (_: Exception) {}
+
+        val pickedName = uri.lastPathSegment?.substringAfterLast('/') ?: fileName
+        isLoading = true
+        errorMessage = null
+        scope.launch {
+            // Try persist permission first, fallback to copy
+            var localPath = uri.toString()
             try {
                 context.contentResolver.takePersistableUriPermission(
-                    it,
+                    uri,
                     Intent.FLAG_GRANT_READ_URI_PERMISSION
                 )
-            } catch (_: Exception) {}
-            // Re-parse the file
-            isLoading = true
-            errorMessage = null
-            scope.launch {
-                loadFile(context, it, fileName, forcedEncoding)?.let { result ->
-                    chapters = result
-                    repository.addRecentFile(it.toString(), fileName)
-                } ?: run {
-                    errorMessage = "无法读取文件，请重新选择"
-                }
-                isLoading = false
+            } catch (_: Exception) {
+                // Copy to local storage as fallback
+                try {
+                    val localFile = File(context.filesDir, "books/$pickedName")
+                    localFile.parentFile?.mkdirs()
+                    context.contentResolver.openInputStream(uri)?.use { input ->
+                        localFile.outputStream().use { output ->
+                            input.copyTo(output)
+                        }
+                    }
+                    localPath = localFile.absolutePath
+                } catch (_: Exception) {}
             }
+
+            loadFile(context, localPath, pickedName, forcedEncoding)?.let { result ->
+                chapters = result
+                repository.addRecentFile(localPath, pickedName)
+            } ?: run {
+                errorMessage = "无法读取文件，请重新选择"
+            }
+            isLoading = false
         }
     }
 
@@ -94,8 +117,7 @@ fun ReaderScreen(
         isLoading = true
         errorMessage = null
         try {
-            val uri = Uri.parse(filePath)
-            val result = loadFile(context, uri, fileName, forcedEncoding)
+            val result = loadFile(context, filePath, fileName, forcedEncoding)
             if (result != null && result.isNotEmpty()) {
                 chapters = result
                 repository.addRecentFile(filePath, fileName)
@@ -322,12 +344,17 @@ fun ReaderScreen(
 
 private suspend fun loadFile(
     context: android.content.Context,
-    uri: Uri,
+    filePath: String,
     fileName: String,
     forcedEncoding: String?
 ): List<Chapter>? = withContext(Dispatchers.IO) {
     try {
-        val inputStream = context.contentResolver.openInputStream(uri) ?: return@withContext null
+        val isLocalFile = !filePath.startsWith("content://")
+        val inputStream = if (isLocalFile) {
+            FileInputStream(File(filePath))
+        } else {
+            context.contentResolver.openInputStream(Uri.parse(filePath)) ?: return@withContext null
+        }
         val result = if (fileName.endsWith(".epub", ignoreCase = true)) {
             EpubParser.parse(inputStream)
         } else {
