@@ -4,9 +4,11 @@ import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -15,6 +17,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.novelreader.data.model.Chapter
@@ -47,52 +50,42 @@ fun ReaderScreen(
     var chapters by remember { mutableStateOf<List<Chapter>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
-    var toolbarVisible by remember { mutableStateOf(true) }
     var toastMessage by remember { mutableStateOf("") }
     var toastVisible by remember { mutableStateOf(false) }
     var fontSize by remember { mutableStateOf(16f) }
     var lineHeight by remember { mutableStateOf(1.6f) }
     var forcedEncoding by remember { mutableStateOf<String?>(null) }
 
+    // Chapter reading state: null = chapter list, index = reading that chapter
+    var selectedChapter by remember { mutableStateOf<Int?>(null) }
+
     val listState = rememberLazyListState()
 
-    // SAF file picker for re-opening files with lost permissions
+    // SAF file picker for re-opening files
     val openDocumentLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
         if (uri == null) return@rememberLauncherForActivityResult
-        try {
-            context.contentResolver.takePersistableUriPermission(
-                uri,
-                Intent.FLAG_GRANT_READ_URI_PERMISSION
-            )
-        } catch (_: Exception) {}
-
-        val pickedName = uri.lastPathSegment?.substringAfterLast('/') ?: fileName
         isLoading = true
         errorMessage = null
+        selectedChapter = null
         scope.launch {
-            // Try persist permission first, fallback to copy
             var localPath = uri.toString()
+            val pickedName = uri.lastPathSegment?.substringAfterLast('/') ?: fileName
             try {
                 context.contentResolver.takePersistableUriPermission(
-                    uri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    uri, Intent.FLAG_GRANT_READ_URI_PERMISSION
                 )
             } catch (_: Exception) {
-                // Copy to local storage as fallback
                 try {
                     val localFile = File(context.filesDir, "books/$pickedName")
                     localFile.parentFile?.mkdirs()
                     context.contentResolver.openInputStream(uri)?.use { input ->
-                        localFile.outputStream().use { output ->
-                            input.copyTo(output)
-                        }
+                        localFile.outputStream().use { output -> input.copyTo(output) }
                     }
                     localPath = localFile.absolutePath
                 } catch (_: Exception) {}
             }
-
             loadFile(context, localPath, pickedName, forcedEncoding)?.let { result ->
                 chapters = result
                 repository.addRecentFile(localPath, pickedName)
@@ -116,6 +109,7 @@ fun ReaderScreen(
     LaunchedEffect(filePath) {
         isLoading = true
         errorMessage = null
+        selectedChapter = null
         try {
             val result = loadFile(context, filePath, fileName, forcedEncoding)
             if (result != null && result.isNotEmpty()) {
@@ -134,13 +128,13 @@ fun ReaderScreen(
         isLoading = false
     }
 
-    // Save reading progress with debounce (2s)
+    // Save reading progress with debounce (2s) — only in reading mode
     LaunchedEffect(Unit) {
         snapshotFlow { listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset }
             .debounce(2000L)
             .collect { (index, offset) ->
-                if (chapters.isNotEmpty()) {
-                    repository.saveReadingProgress(filePath, index, offset)
+                if (chapters.isNotEmpty() && selectedChapter != null) {
+                    repository.saveReadingProgress(filePath, selectedChapter!!, index)
                 }
             }
     }
@@ -149,15 +143,41 @@ fun ReaderScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Text(
-                        fileName,
-                        maxLines = 1,
-                        style = MaterialTheme.typography.titleMedium
-                    )
+                    if (selectedChapter != null && chapters.isNotEmpty()) {
+                        Text(
+                            chapters[selectedChapter!!].title,
+                            maxLines = 1,
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                    } else {
+                        Text(
+                            fileName,
+                            maxLines = 1,
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                    }
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = {
+                        if (selectedChapter != null) {
+                            selectedChapter = null // Back to chapter list
+                        } else {
+                            onBack()
+                        }
+                    }) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "返回")
+                    }
+                },
+                actions = {
+                    if (selectedChapter != null) {
+                        IconButton(onClick = {
+                            val chapter = chapters[selectedChapter!!]
+                            ClipboardHelper.copyContent(context, chapter.content, chapter.wordCount)
+                            toastMessage = "内容已复制（约${chapter.wordCount}字）"
+                            toastVisible = true
+                        }) {
+                            Icon(Icons.Default.ContentCopy, contentDescription = "复制全文")
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -178,7 +198,6 @@ fun ReaderScreen(
                     )
                 }
                 errorMessage != null -> {
-                    // Error state
                     Column(
                         modifier = Modifier
                             .align(Alignment.Center)
@@ -200,10 +219,8 @@ fun ReaderScreen(
                         Spacer(modifier = Modifier.height(24.dp))
                         Button(onClick = {
                             openDocumentLauncher.launch(arrayOf(
-                                "text/plain",
-                                "application/epub+zip",
-                                "application/octet-stream",
-                                "*/*"
+                                "text/plain", "application/epub+zip",
+                                "application/octet-stream", "*/*"
                             ))
                         }) {
                             Icon(Icons.Default.FolderOpen, null, modifier = Modifier.size(18.dp))
@@ -216,16 +233,14 @@ fun ReaderScreen(
                         }
                     }
                 }
-                chapters.isNotEmpty() -> {
+                // Reading mode: show chapter content
+                selectedChapter != null -> {
+                    val chapter = chapters[selectedChapter!!]
                     LazyColumn(
                         state = listState,
-                        contentPadding = PaddingValues(
-                            top = 8.dp,
-                            bottom = 80.dp
-                        )
+                        contentPadding = PaddingValues(top = 8.dp, bottom = 80.dp)
                     ) {
-                        items(chapters) { chapter ->
-                            // Chapter content display
+                        item {
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -249,87 +264,87 @@ fun ReaderScreen(
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                             }
-
-                            // Copy actions row
+                        }
+                        // Navigation buttons
+                        item {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 4.dp),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    .padding(horizontal = 16.dp, vertical = 24.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                FilledTonalButton(
-                                    onClick = {
+                                if (selectedChapter!! > 0) {
+                                    OutlinedButton(onClick = {
+                                        selectedChapter = selectedChapter!! - 1
+                                    }) {
+                                        Icon(Icons.Default.ChevronLeft, null, modifier = Modifier.size(18.dp))
+                                        Text("上一章")
+                                    }
+                                } else {
+                                    Spacer(modifier = Modifier.width(1.dp))
+                                }
+                                if (selectedChapter!! < chapters.size - 1) {
+                                    OutlinedButton(onClick = {
+                                        selectedChapter = selectedChapter!! + 1
+                                    }) {
+                                        Text("下一章")
+                                        Icon(Icons.Default.ChevronRight, null, modifier = Modifier.size(18.dp))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                // Chapter list mode
+                chapters.isNotEmpty() -> {
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        // Summary bar
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    "共 ${chapters.size} 章",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                                Text(
+                                    "约 ${chapters.sumOf { it.wordCount }} 字",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
+                        }
+                        // Chapter list
+                        LazyColumn(
+                            contentPadding = PaddingValues(vertical = 8.dp)
+                        ) {
+                            itemsIndexed(chapters) { index, chapter ->
+                                ChapterListItem(
+                                    index = index + 1,
+                                    chapter = chapter,
+                                    onClick = { selectedChapter = index },
+                                    onCopyTitle = {
                                         ClipboardHelper.copyTitle(context, chapter.title)
                                         toastMessage = "标题已复制"
                                         toastVisible = true
                                     },
-                                    colors = ButtonDefaults.filledTonalButtonColors(
-                                        containerColor = MaterialTheme.colorScheme.secondaryContainer
-                                    )
-                                ) {
-                                    Icon(Icons.Default.Title, null, modifier = Modifier.size(16.dp))
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("复制标题")
-                                }
-                                FilledTonalButton(
-                                    onClick = {
+                                    onCopyContent = {
                                         ClipboardHelper.copyContent(context, chapter.content, chapter.wordCount)
                                         toastMessage = "内容已复制（约${chapter.wordCount}字）"
                                         toastVisible = true
-                                    },
-                                    colors = ButtonDefaults.filledTonalButtonColors(
-                                        containerColor = MaterialTheme.colorScheme.primaryContainer
-                                    )
-                                ) {
-                                    Icon(Icons.Default.ContentCopy, null, modifier = Modifier.size(16.dp))
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("复制全文 (${chapter.wordCount}字)")
-                                }
+                                    }
+                                )
                             }
-
-                            Divider(
-                                modifier = Modifier.padding(vertical = 16.dp),
-                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
-                            )
                         }
                     }
                 }
-            }
-
-            // Floating toolbar (only show when content loaded)
-            if (chapters.isNotEmpty()) {
-                FloatingToolbar(
-                    visible = toolbarVisible,
-                    onFileClick = {
-                        openDocumentLauncher.launch(arrayOf(
-                            "text/plain",
-                            "application/epub+zip",
-                            "application/octet-stream",
-                            "*/*"
-                        ))
-                    },
-                    onCopyClick = {
-                        val visibleChapter = chapters.getOrNull(listState.firstVisibleItemIndex)
-                        if (visibleChapter != null) {
-                            ClipboardHelper.copyContent(context, visibleChapter.content, visibleChapter.wordCount)
-                            toastMessage = "内容已复制（约${visibleChapter.wordCount}字）"
-                            toastVisible = true
-                        }
-                    },
-                    onBookmarkClick = {
-                        scope.launch {
-                            repository.saveReadingProgress(
-                                filePath,
-                                listState.firstVisibleItemIndex,
-                                listState.firstVisibleItemScrollOffset
-                            )
-                            toastMessage = "书签已保存"
-                            toastVisible = true
-                        }
-                    },
-                    onThemeClick = { toolbarVisible = !toolbarVisible },
-                    onSettingsClick = onSettingsClick
-                )
             }
 
             // Copy toast
@@ -337,6 +352,86 @@ fun ReaderScreen(
                 message = toastMessage,
                 visible = toastVisible,
                 onDismiss = { toastVisible = false }
+            )
+        }
+    }
+}
+
+@Composable
+private fun ChapterListItem(
+    index: Int,
+    chapter: Chapter,
+    onClick: () -> Unit,
+    onCopyTitle: () -> Unit,
+    onCopyContent: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .clickable(onClick = onClick),
+        shape = MaterialTheme.shapes.medium,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Chapter number
+            Surface(
+                shape = MaterialTheme.shapes.small,
+                color = MaterialTheme.colorScheme.primaryContainer,
+                modifier = Modifier.size(36.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(
+                        "$index",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            // Title + word count
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = chapter.title,
+                    style = MaterialTheme.typography.titleSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = "${chapter.wordCount} 字",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            // Copy buttons
+            IconButton(onClick = onCopyTitle, modifier = Modifier.size(32.dp)) {
+                Icon(
+                    Icons.Default.Title,
+                    contentDescription = "复制标题",
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            IconButton(onClick = onCopyContent, modifier = Modifier.size(32.dp)) {
+                Icon(
+                    Icons.Default.ContentCopy,
+                    contentDescription = "复制全文",
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Icon(
+                Icons.Default.ChevronRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
             )
         }
     }
