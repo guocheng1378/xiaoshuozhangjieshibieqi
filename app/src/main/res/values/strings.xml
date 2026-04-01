@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">小说阅读器</string>
+    <string name="app_name">小说章节识别器</string>
     <string name="open_file">打开文件</string>
     <string name="settings">设置</string>
     <string name="theme">主题</string>

@@ -119,7 +119,7 @@ fun HomeScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Text("小说阅读器", style = MaterialTheme.typography.titleLarge)
+                    Text("小说章节识别器", style = MaterialTheme.typography.titleLarge)
                 },
                 actions = {
                     IconButton(onClick = onSettingsClick) {

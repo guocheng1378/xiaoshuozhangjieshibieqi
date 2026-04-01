@@ -1,10 +1,10 @@
-# 📚 NovelReader
+# 📚 小说章节识别器
 
-一个基于 Jetpack Compose 的 Android 小说阅读器，支持 TXT 和 EPUB 格式。
+一个基于 Jetpack Compose 的 Android 小说章节识别器，支持 TXT 和 EPUB 格式。
 
 ## 📥 下载
 
-👉 [前往 Releases 页面下载最新 APK](https://github.com/guocheng1378/bookwork/releases/latest)
+👉 [前往 Releases 页面下载最新 APK](https://github.com/guocheng1378/xiaoshuozhangjieshibieqi/releases/latest)
 
 ## ✨ 功能特性
 
@@ -47,7 +47,7 @@ app/src/main/java/com/novelreader/
 ## 🚀 构建
 
 ```bash
-git clone https://github.com/guocheng1378/bookwork.git
+git clone https://github.com/guocheng1378/xiaoshuozhangjieshibieqi.git
 cd bookwork
 ./gradlew assembleDebug
 ```

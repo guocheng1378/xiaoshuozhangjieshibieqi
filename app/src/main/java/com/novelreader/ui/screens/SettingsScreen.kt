@@ -189,11 +189,11 @@ fun SettingsScreen(
             // About section
             SettingsSection(title = "关于") {
                 Text(
-                    "小说阅读器 v2.0",
+                    "小说章节识别器 v2.0",
                     style = MaterialTheme.typography.bodyMedium
                 )
                 Text(
-                    "支持 TXT / EPUB 格式",
+                    "支持 TXT / EPUB / ZIP 格式，自动识别章节",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
