@@ -63,7 +63,7 @@ fun HomeScreen(
                     importZipFile(context, uri, repository, onBookClick)
                 } catch (e: Exception) {
                     e.printStackTrace()
-                    importProgress = "解压出错: ${'$'}{e.message ?: "未知错误"}"
+                    importProgress = "解压出错，请重试"
                 } finally {
                     importing = false
                     importProgress = ""
@@ -107,7 +107,7 @@ fun HomeScreen(
                 importFolder(context, uri, repository, onBookClick)
             } catch (e: Exception) {
                 e.printStackTrace()
-                importProgress = "导入出错: ${'$'}{e.message ?: "未知错误"}"
+                importProgress = "导入出错，请重试"
             } finally {
                 importing = false
                 importProgress = ""
