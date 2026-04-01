@@ -8,6 +8,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.novelreader.data.repository.BookRepository
+import com.novelreader.ui.screens.BrowseMode
+import com.novelreader.ui.screens.FileBrowserScreen
 import com.novelreader.ui.screens.HomeScreen
 import com.novelreader.ui.screens.ReaderScreen
 import com.novelreader.ui.screens.SettingsScreen
@@ -24,6 +26,11 @@ sealed class Screen(val route: String) {
         }
     }
     object Settings : Screen("settings")
+    object FileBrowser : Screen("file_browser/{mode}") {
+        fun createRoute(mode: BrowseMode): String {
+            return "file_browser/${mode.name}"
+        }
+    }
 }
 
 @Composable
@@ -44,6 +51,12 @@ fun NavGraph(
                 },
                 onSettingsClick = {
                     navController.navigate(Screen.Settings.route)
+                },
+                onBrowseFiles = {
+                    navController.navigate(Screen.FileBrowser.createRoute(BrowseMode.FILES_AND_FOLDERS))
+                },
+                onBrowseFolders = {
+                    navController.navigate(Screen.FileBrowser.createRoute(BrowseMode.FOLDERS_ONLY))
                 }
             )
         }
@@ -75,6 +88,39 @@ fun NavGraph(
         composable(Screen.Settings.route) {
             SettingsScreen(
                 repository = repository,
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(
+            route = Screen.FileBrowser.route,
+            arguments = listOf(
+                navArgument("mode") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val modeName = backStackEntry.arguments?.getString("mode") ?: "FILES_AND_FOLDERS"
+            val mode = try {
+                BrowseMode.valueOf(modeName)
+            } catch (e: Exception) {
+                BrowseMode.FILES_AND_FOLDERS
+            }
+
+            FileBrowserScreen(
+                browseMode = mode,
+                onFileSelected = { file ->
+                    // Open the selected file
+                    val route = Screen.Reader.createRoute(file.absolutePath, file.name)
+                    navController.navigate(route) {
+                        // Pop back to home after selecting file
+                        popUpTo(Screen.FileBrowser.route) { inclusive = true }
+                    }
+                },
+                onFolderSelected = { folder ->
+                    // Import folder contents
+                    // This would need to be handled by the HomeScreen
+                    // For now, just navigate back
+                    navController.popBackStack()
+                },
                 onBack = { navController.popBackStack() }
             )
         }
