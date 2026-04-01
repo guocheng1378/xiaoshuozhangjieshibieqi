@@ -89,12 +89,23 @@ fun HomeScreen(
         contract = ActivityResultContracts.OpenDocumentTree()
     ) { uri: Uri? ->
         uri ?: return@rememberLauncherForActivityResult
+        try {
+            context.contentResolver.takePersistableUriPermission(
+                uri, Intent.FLAG_GRANT_READ_URI_PERMISSION
+            )
+        } catch (_: Exception) {}
         importing = true
         importProgress = "正在扫描文件夹..."
         scope.launch {
-            importFolder(context, uri, repository, onBookClick)
-            importing = false
-            importProgress = ""
+            try {
+                importFolder(context, uri, repository, onBookClick)
+            } catch (e: Exception) {
+                e.printStackTrace()
+                importProgress = "导入出错: ${'$'}{e.message ?: "未知错误"}"
+            } finally {
+                importing = false
+                importProgress = ""
+            }
         }
     }
 
@@ -400,7 +411,8 @@ private suspend fun importFolder(
 
     val bookUris = mutableListOf<BookUri>()
 
-    fun scanUri(uri: Uri) {
+    fun scanUri(uri: Uri, depth: Int = 0) {
+        if (depth > 10) return  // 防止过深递归导致卡死
         val treeDocId = DocumentsContract.getTreeDocumentId(uri)
         val docUri = DocumentsContract.buildChildDocumentsUriUsingTree(uri, treeDocId)
         val cursor = context.contentResolver.query(
@@ -420,7 +432,7 @@ private suspend fun importFolder(
                 val childUri = DocumentsContract.buildDocumentUriUsingTree(uri, docId)
 
                 if (mimeType == DocumentsContract.Document.MIME_TYPE_DIR) {
-                    scanUri(childUri)
+                    scanUri(childUri, depth + 1)
                 } else {
                     val lower = name.lowercase()
                     if (lower.endsWith(".txt") || lower.endsWith(".epub")) {
@@ -444,7 +456,8 @@ private suspend fun importFolder(
                     val zipDir = File(context.filesDir, "zip_books")
                     zipDir.mkdirs()
                     for (entry in entries) {
-                        val localFile = File(zipDir, entry.name)
+                        val safeName = name.substringBeforeLast(".") + "/" + entry.name
+                        val localFile = File(zipDir, safeName.replace("/", "_"))
                         localFile.parentFile?.mkdirs()
                         entry.inputStreamProvider().use { input ->
                             localFile.outputStream().use { output -> input.copyTo(output) }
