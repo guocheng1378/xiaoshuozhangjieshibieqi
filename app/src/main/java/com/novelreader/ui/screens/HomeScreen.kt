@@ -150,7 +150,8 @@ fun HomeScreen(
                         .weight(1f)
                         .clickable {
                             openDocumentLauncher.launch(arrayOf(
-                                "text/plain", "application/epub+zip",
+                                "text/plain", "text/markdown",
+                                "application/epub+zip",
                                 "application/zip", "application/octet-stream", "*/*"
                             ))
                         },
@@ -449,7 +450,7 @@ private suspend fun importFolder(
                                 }
                             }
                         }
-                    } else if (lower.endsWith(".txt") || lower.endsWith(".epub")) {
+                    } else if (lower.endsWith(".txt") || lower.endsWith(".epub") || lower.endsWith(".md")) {
                         val localFile = File(bookDir, name)
                         localFile.parentFile?.mkdirs()
                         context.contentResolver.openInputStream(file.uri)?.use { input ->

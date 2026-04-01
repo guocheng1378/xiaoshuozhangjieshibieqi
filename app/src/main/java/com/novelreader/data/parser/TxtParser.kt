@@ -7,21 +7,25 @@ import java.nio.charset.Charset
 object TxtParser {
 
     val chapterPatterns = listOf(
-        // Markdown headers: ## 第X章
+        // #/## 第X章
         Regex("""^#{1,3}\s*第[零一二三四五六七八九十百千0-9]+[章节回集篇].{0,40}$"""),
-        // Plain: 第X章 标题（允许空格或标点后接标题）
+        // 第X章 标题（允许空格或标点后接标题）
         Regex("""^第[零一二三四五六七八九十百千0-9]+[章节回集篇][\s:：、.．].{0,40}$"""),
-        // 第X章标题（无空格）
-        Regex("""^第[零一二三四五六七八九十百千0-9]+[章节回集篇][^\s【】]{1,30}$"""),
-        // Chapter X
-        Regex("""^Chapter\s+\d+.{0,40}$""", RegexOption.IGNORE_CASE),
+        // 第X章标题（无空格，限2-15字避免匹配正文）
+        Regex("""^第[零一二三四五六七八九十百千0-9]+[章节回集篇][^\s【】]{1,14}$"""),
+        // Chapter X / Episode X / Part X
+        Regex("""^(Chapter|Episode|Part)\s+\d+.{0,40}$""", RegexOption.IGNORE_CASE),
         // 【第X章 标题】—— 仅匹配含章节编号的方括号标题（排除"完""未完"）
         Regex("""^【第[零一二三四五六七八九十百千0-9]+[章节回集卷篇][\s:：][^】完未]{1,40}】$"""),
-        // Volume markers: 第X卷：标题（需有标点分隔）
+        // 第X卷：标题（需有标点分隔）
         Regex("""^第[零一二三四五六七八九十百千0-9]+[卷篇部][\s:：、.．].{2,40}$"""),
-        // Markdown volume: # 卷/篇/部
+        // Markdown: # 卷/篇/部
         Regex("""^#{1,3}\s*(卷|篇|部).{0,40}$"""),
         Regex("""^(卷|篇|部)\s*[第0-9].{0,40}$"""),
+        // MD level-1 header as chapter: # Title (排除含冒号的元数据行如"小说名：xxx")
+        Regex("""^#\s+[^\s\[!\x60#:：][^:：]{0,28}$"""),
+        // MD level-2 header only if contains chapter keywords
+        Regex("""^##\s+.*(第.{1,5}[章回节集篇卷]|Chapter|Episode|Part|序章|终章|尾声|番外|楔子|引子|序幕).*$""", RegexOption.IGNORE_CASE),
     )
 
     fun parse(inputStream: InputStream, charset: Charset = Charsets.UTF_8): List<Chapter> {
