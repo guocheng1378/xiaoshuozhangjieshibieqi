@@ -59,9 +59,15 @@ fun HomeScreen(
             importing = true
             importProgress = "正在解压..."
             scope.launch {
-                importZipFile(context, uri, repository, onBookClick)
-                importing = false
-                importProgress = ""
+                try {
+                    importZipFile(context, uri, repository, onBookClick)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    importProgress = "解压出错: ${'$'}{e.message ?: "未知错误"}"
+                } finally {
+                    importing = false
+                    importProgress = ""
+                }
             }
         } else {
             var localPath: String? = null

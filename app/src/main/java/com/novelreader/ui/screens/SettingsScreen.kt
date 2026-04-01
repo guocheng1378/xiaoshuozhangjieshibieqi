@@ -189,7 +189,7 @@ fun SettingsScreen(
             // About section
             SettingsSection(title = "关于") {
                 Text(
-                    "小说阅读器 v1.0",
+                    "小说阅读器 v2.0",
                     style = MaterialTheme.typography.bodyMedium
                 )
                 Text(
