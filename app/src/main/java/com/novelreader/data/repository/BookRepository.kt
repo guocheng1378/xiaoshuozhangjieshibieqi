@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
 import java.io.IOException
+import java.security.MessageDigest
 
 data class AppSettings(
     val themeMode: String = "system", // "system", "light", "dark"
@@ -32,6 +33,11 @@ class BookRepository(private val context: Context) {
         private val RECENT_FILES = stringPreferencesKey("recent_files")
         private val READING_PREFIX = "reading_chapter_"
         private val SCROLL_PREFIX = "scroll_offset_"
+    }
+
+    private fun md5(input: String): String {
+        val bytes = MessageDigest.getInstance("MD5").digest(input.toByteArray())
+        return bytes.joinToString("") { "%02x".format(it) }
     }
 
     val settingsFlow: Flow<AppSettings> = context.dataStore.data
@@ -88,19 +94,23 @@ class BookRepository(private val context: Context) {
     }
 
     suspend fun saveReadingProgress(filePath: String, chapterIndex: Int, scrollOffset: Int) {
+        val key = md5(filePath)
         context.dataStore.edit { prefs ->
-            prefs[stringPreferencesKey(READING_PREFIX + filePath.hashCode())] = chapterIndex.toString()
-            prefs[stringPreferencesKey(SCROLL_PREFIX + filePath.hashCode())] = scrollOffset.toString()
+            prefs[stringPreferencesKey(READING_PREFIX + key)] = chapterIndex.toString()
+            prefs[stringPreferencesKey(SCROLL_PREFIX + key)] = scrollOffset.toString()
         }
     }
 
-    fun getReadingProgress(filePath: String): Flow<Pair<Int, Int>> = context.dataStore.data
-        .catch { emit(emptyPreferences()) }
-        .map { prefs ->
-            val chapter = prefs[stringPreferencesKey(READING_PREFIX + filePath.hashCode())]?.toIntOrNull() ?: 0
-            val scroll = prefs[stringPreferencesKey(SCROLL_PREFIX + filePath.hashCode())]?.toIntOrNull() ?: 0
-            chapter to scroll
-        }
+    fun getReadingProgress(filePath: String): Flow<Pair<Int, Int>> {
+        val key = md5(filePath)
+        return context.dataStore.data
+            .catch { emit(emptyPreferences()) }
+            .map { prefs ->
+                val chapter = prefs[stringPreferencesKey(READING_PREFIX + key)]?.toIntOrNull() ?: 0
+                val scroll = prefs[stringPreferencesKey(SCROLL_PREFIX + key)]?.toIntOrNull() ?: 0
+                chapter to scroll
+            }
+    }
 
     suspend fun addRecentFile(filePath: String, fileName: String) {
         context.dataStore.edit { prefs ->
