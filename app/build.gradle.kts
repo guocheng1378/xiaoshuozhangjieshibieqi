@@ -73,6 +73,9 @@ dependencies {
     // Navigation
     implementation("androidx.navigation:navigation-compose:2.7.7")
 
+    // AppCompat (required for FragmentContainerView used by NavHost)
+    implementation("androidx.appcompat:appcompat:1.6.1")
+
     // DataStore
     implementation("androidx.datastore:datastore-preferences:1.0.0")
 
