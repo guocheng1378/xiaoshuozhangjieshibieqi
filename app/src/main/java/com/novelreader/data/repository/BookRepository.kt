@@ -131,7 +131,18 @@ class BookRepository(private val context: Context) {
             val entry = "$filePath::$fileName"
             current.remove(entry)
             current.add(0, entry)
-            if (current.size > 20) current.removeLast()
+            prefs[RECENT_FILES] = current.joinToString("||")
+        }
+    }
+
+    suspend fun addRecentFiles(files: List<Pair<String, String>>) {
+        context.dataStore.edit { prefs ->
+            val current = prefs[RECENT_FILES]?.split("||")?.filter { it.isNotEmpty() }?.toMutableList() ?: mutableListOf()
+            for ((filePath, fileName) in files) {
+                val entry = "$filePath::$fileName"
+                current.remove(entry)
+                current.add(0, entry)
+            }
             prefs[RECENT_FILES] = current.joinToString("||")
         }
     }
