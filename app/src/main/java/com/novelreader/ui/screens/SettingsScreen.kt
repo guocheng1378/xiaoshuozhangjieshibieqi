@@ -297,11 +297,11 @@ fun SettingsScreen(
                     }
                     OutlinedButton(
                         onClick = {
-                            uriHandler.openUri("https://github.com/guocheng1378/xiaoshuozhangjieshibieqi/releases/download")
+                            uriHandler.openUri("https://github.com/guocheng1378/xiaoshuozhangjieshibieqi")
                         },
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text("加入更新")
+                        Text("关于更新")
                     }
                 }
             }
