@@ -117,9 +117,14 @@ fun HomeScreen(
         importProgress = "正在扫描文件夹..."
         scope.launch {
             try {
-                val result = importFolder(context, uri, repository, onBookClick)
+                val result = importFolder(context, uri, repository, onBookClick) { current, total ->
+                    importProgress = "正在导入... $current/$total"
+                }
                 if (result.timedOut) {
-                    importProgress = "导入超时，部分文件未导入"
+                    importProgress = "导入超时，已导入 ${result.importedCount} 个文件"
+                    kotlinx.coroutines.delay(2000)
+                } else if (result.importedCount == 0) {
+                    importProgress = "未找到 TXT/EPUB/MD 文件"
                     kotlinx.coroutines.delay(2000)
                 }
                 result.firstPath?.let { path ->
@@ -434,13 +439,39 @@ private suspend fun importFolder(
     context: android.content.Context,
     folderUri: Uri,
     repository: BookRepository,
-    onBookClick: (String, String) -> Unit
+    onBookClick: (String, String) -> Unit,
+    onProgress: (current: Int, total: Int) -> Unit = { _, _ -> }
 ): ImportResult = withContext(Dispatchers.IO) {
     var firstFile: Pair<String, String>? = null
     val zipDir = File(context.filesDir, "zip_books")
     val bookDir = File(context.filesDir, "books")
     zipDir.mkdirs()
     bookDir.mkdirs()
+    var importCount = 0
+
+    // 先统计文件总数
+    var totalCount = 0
+    fun countFiles(dirUri: Uri, depth: Int = 0) {
+        if (depth > 5) return
+        val dir = try {
+            androidx.documentfile.provider.DocumentFile.fromTreeUri(context, dirUri)
+        } catch (_: Exception) { null } ?: return
+        val children = try { dir.listFiles() } catch (_: Exception) { return }
+        for (file in children) {
+            try {
+                if (file.isDirectory) {
+                    countFiles(file.uri, depth + 1)
+                } else if (file.canRead()) {
+                    val name = file.name ?: continue
+                    val lower = name.lowercase()
+                    if (lower.endsWith(".txt") || lower.endsWith(".epub") || lower.endsWith(".md") || lower.endsWith(".zip")) {
+                        totalCount++
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+    }
+    countFiles(folderUri)
 
     suspend fun scanAndImport(dirUri: Uri, depth: Int = 0) {
         if (depth > 5) return
@@ -476,7 +507,6 @@ private suspend fun importFolder(
                             for (entry in entries) {
                                 val safeName = name.substringBeforeLast(".") + "_" + entry.name
                                 var localFile = File(zipDir, safeName.replace("/", "_"))
-                                // 去重：同名文件加序号
                                 if (localFile.exists()) {
                                     val base = localFile.nameWithoutExtension
                                     val ext = localFile.extension
@@ -496,9 +526,10 @@ private suspend fun importFolder(
                                 }
                             }
                         }
+                        importCount++
+                        onProgress(importCount, totalCount)
                     } else if (isTxt || isEpub || isMd) {
                         var localFile = File(bookDir, name)
-                        // 去重：同名文件加序号
                         if (localFile.exists()) {
                             val base = name.substringBeforeLast(".")
                             val ext = name.substringAfterLast(".", "")
@@ -516,21 +547,24 @@ private suspend fun importFolder(
                         if (firstFile == null) {
                             firstFile = localFile.absolutePath to name
                         }
+                        importCount++
+                        onProgress(importCount, totalCount)
                     }
                 }
             } catch (_: Exception) {}
         }
     }
 
-    val timedOut = withTimeoutOrNull(30_000) {
+    val timedOut = withTimeoutOrNull(120_000) {
         scanAndImport(folderUri)
     } == null
 
-    ImportResult(firstFile?.first, firstFile?.second, timedOut)
+    ImportResult(firstFile?.first, firstFile?.second, timedOut, importCount)
 }
 
 private data class ImportResult(
     val firstPath: String?,
     val firstName: String?,
-    val timedOut: Boolean
+    val timedOut: Boolean,
+    val importedCount: Int = 0
 )
