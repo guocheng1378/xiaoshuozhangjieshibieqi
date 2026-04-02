@@ -28,6 +28,9 @@ object TxtParser {
         Regex("""^##\s+.*(第.{1,5}[章回节集篇卷]|Chapter|Episode|Part|序章|终章|尾声|番外|楔子|引子|序幕).*$""", RegexOption.IGNORE_CASE),
     )
 
+    /** 缓存已编译的自定义正则，避免重复编译 */
+    private val customPatternCache = mutableMapOf<String, Regex>()
+
     fun parse(inputStream: InputStream, charset: Charset = Charsets.UTF_8, customPatterns: List<String> = emptyList()): List<Chapter> {
         val text = String(inputStream.readBytes(), charset)
         return parse(text, customPatterns)
@@ -37,9 +40,10 @@ object TxtParser {
         val allPatterns = mutableListOf<Regex>()
         allPatterns.addAll(chapterPatterns)
         for (cp in customPatterns) {
-            try {
-                allPatterns.add(Regex(cp))
-            } catch (_: Exception) {}
+            val compiled = customPatternCache[cp] ?: try {
+                Regex(cp).also { customPatternCache[cp] = it }
+            } catch (_: Exception) { null }
+            compiled?.let { allPatterns.add(it) }
         }
 
         val lines = text.lines()

@@ -93,8 +93,8 @@ fun ReaderScreen(
         }
     }
 
-    // Load file
-    LaunchedEffect(filePath) {
+    // Load file — 当 filePath / encoding / customPatterns 变化时都重新解析
+    LaunchedEffect(filePath, forcedEncoding, customPatterns) {
         isLoading = true
         errorMessage = null
         try {

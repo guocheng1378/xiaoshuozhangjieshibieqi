@@ -45,6 +45,13 @@ fun HomeScreen(
         repository.getRecentFiles().collect { files ->
             recentFiles = files
             isLoading = false
+            // 清理已不在记录中的孤立文件
+            if (files.isNotEmpty()) {
+                val activePaths = files.map { it.filePath }.toSet()
+                withContext(Dispatchers.IO) {
+                    repository.cleanOrphanFiles(activePaths)
+                }
+            }
         }
     }
 
@@ -421,11 +428,17 @@ private suspend fun importFolder(
         if (depth > 5) return
         val dir = try {
             androidx.documentfile.provider.DocumentFile.fromTreeUri(context, dirUri)
-        } catch (_: Exception) { null } ?: return
+        } catch (e: Exception) {
+            android.util.Log.w("HomeScreen", "无法访问目录: $dirUri", e)
+            null
+        } ?: return
 
         val children = try {
             dir.listFiles()
-        } catch (_: Exception) { return }
+        } catch (e: Exception) {
+            android.util.Log.w("HomeScreen", "无法列出目录内容", e)
+            return
+        }
 
         for (file in children) {
             try {
@@ -444,7 +457,17 @@ private suspend fun importFolder(
                             val entries = ZipParser.scan(zipInput)
                             for (entry in entries) {
                                 val safeName = name.substringBeforeLast(".") + "_" + entry.name
-                                val localFile = File(zipDir, safeName.replace("/", "_"))
+                                var localFile = File(zipDir, safeName.replace("/", "_"))
+                                // 去重：同名文件加序号
+                                if (localFile.exists()) {
+                                    val base = localFile.nameWithoutExtension
+                                    val ext = localFile.extension
+                                    var counter = 1
+                                    while (localFile.exists()) {
+                                        localFile = File(zipDir, if (ext.isNotEmpty()) "${base}_$counter.$ext" else "${base}_$counter")
+                                        counter++
+                                    }
+                                }
                                 localFile.parentFile?.mkdirs()
                                 entry.inputStreamProvider().use { input ->
                                     localFile.outputStream().use { output -> input.copyTo(output) }
@@ -456,7 +479,17 @@ private suspend fun importFolder(
                             }
                         }
                     } else if (isTxt || isEpub || isMd) {
-                        val localFile = File(bookDir, name)
+                        var localFile = File(bookDir, name)
+                        // 去重：同名文件加序号
+                        if (localFile.exists()) {
+                            val base = name.substringBeforeLast(".")
+                            val ext = name.substringAfterLast(".", "")
+                            var counter = 1
+                            while (localFile.exists()) {
+                                localFile = File(bookDir, if (ext.isNotEmpty()) "${base}_$counter.$ext" else "${base}_$counter")
+                                counter++
+                            }
+                        }
                         localFile.parentFile?.mkdirs()
                         context.contentResolver.openInputStream(file.uri)?.use { input ->
                             localFile.outputStream().use { output -> input.copyTo(output) }
@@ -471,11 +504,24 @@ private suspend fun importFolder(
         }
     }
 
-    withTimeoutOrNull(30_000) {
+    val timedOut = withTimeoutOrNull(30_000) {
         scanAndImport(folderUri)
-    }
+    } == null
 
     firstFile?.let { (path, name) ->
-        withContext(Dispatchers.Main) { onBookClick(path, name) }
+        withContext(Dispatchers.Main) {
+            if (timedOut) {
+                importProgress = "导入超时，部分文件未导入"
+                kotlinx.coroutines.delay(2000)
+            }
+            onBookClick(path, name)
+        }
+    } ?: run {
+        if (timedOut) {
+            withContext(Dispatchers.Main) {
+                importProgress = "导入超时，未找到文件"
+                kotlinx.coroutines.delay(2000)
+            }
+        }
     }
 }

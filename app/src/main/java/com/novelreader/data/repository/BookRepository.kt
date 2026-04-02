@@ -148,4 +148,25 @@ class BookRepository(private val context: Context) {
                     } else null
                 } ?: emptyList()
         }
+
+    /**
+     * 清理内部导入目录中已不在最近记录中的文件，释放磁盘空间。
+     * 仅清理 books/ 和 zip_books/，不影响 content:// URI。
+     * 应在获取到 recentFiles 后调用。
+     */
+    fun cleanOrphanFiles(activePaths: Set<String>) {
+        try {
+            val booksDir = java.io.File(context.filesDir, "books")
+            val zipDir = java.io.File(context.filesDir, "zip_books")
+            for (dir in listOf(booksDir, zipDir)) {
+                if (dir.isDirectory) {
+                    dir.walkTopDown().filter { it.isFile }.forEach { file ->
+                        if (file.absolutePath !in activePaths) {
+                            file.delete()
+                        }
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+    }
 }

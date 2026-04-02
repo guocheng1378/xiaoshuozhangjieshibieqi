@@ -91,6 +91,17 @@ fun NovelReaderTheme(
         else -> MIUILightColorScheme
     }
 
+    // useGlass 控制表面颜色的透明度，营造毛玻璃质感
+    val adjustedScheme = if (useGlass) {
+        colorScheme.copy(
+            surface = colorScheme.surface.copy(alpha = 0.85f),
+            surfaceContainerHigh = colorScheme.surfaceContainerHigh.copy(alpha = 0.9f),
+            surfaceContainer = colorScheme.surfaceContainer.copy(alpha = 0.9f),
+        )
+    } else {
+        colorScheme
+    }
+
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
@@ -106,7 +117,7 @@ fun NovelReaderTheme(
     }
 
     MaterialTheme(
-        colorScheme = colorScheme,
+        colorScheme = adjustedScheme,
         typography = NovelTypography,
         shapes = MIUIShapes,
         content = content

@@ -14,6 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import com.novelreader.NovelReaderApp
 import com.novelreader.data.repository.BookRepository
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -327,7 +328,7 @@ fun SettingsScreen(
             // About section
             SettingsSection(title = "关于") {
                 Text(
-                    "小说章节识别器 v2.0",
+                    "小说章节识别器 v${NovelReaderApp.versionName}",
                     style = MaterialTheme.typography.bodyMedium
                 )
                 Text(
