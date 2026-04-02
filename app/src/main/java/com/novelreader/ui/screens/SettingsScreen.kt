@@ -13,6 +13,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
 import com.novelreader.NovelReaderApp
 import com.novelreader.data.repository.BookRepository
@@ -26,10 +27,8 @@ fun SettingsScreen(
     onBack: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
+    val uriHandler = LocalUriHandler.current
     var themeMode by remember { mutableStateOf("system") }
-    var useGlass by remember { mutableStateOf(true) }
-    var fontSize by remember { mutableStateOf(16f) }
-    var lineHeight by remember { mutableStateOf(1.6f) }
     var forcedEncoding by remember { mutableStateOf<String?>(null) }
     var customPatterns by remember { mutableStateOf<List<String>>(emptyList()) }
     var newPattern by remember { mutableStateOf("") }
@@ -39,9 +38,6 @@ fun SettingsScreen(
     LaunchedEffect(Unit) {
         repository.settingsFlow.collectLatest { settings ->
             themeMode = settings.themeMode
-            useGlass = settings.useGlassTheme
-            fontSize = settings.fontSize
-            lineHeight = settings.lineHeight
             forcedEncoding = settings.forcedEncoding
             customPatterns = settings.customChapterPatterns
         }
@@ -101,59 +97,7 @@ fun SettingsScreen(
                     )
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
 
-                // Glass / Material theme toggle
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text("玻璃主题", style = MaterialTheme.typography.labelLarge)
-                        Text(
-                            "iOS 风格毛玻璃效果",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Switch(
-                        checked = useGlass,
-                        onCheckedChange = {
-                            useGlass = it
-                            scope.launch { repository.updateUseGlass(it) }
-                        }
-                    )
-                }
-            }
-
-            // Reading section
-            SettingsSection(title = "阅读") {
-                // Font size
-                Text("字号: ${fontSize.toInt()}sp", style = MaterialTheme.typography.labelLarge)
-                Slider(
-                    value = fontSize,
-                    onValueChange = { fontSize = it },
-                    valueRange = 12f..28f,
-                    steps = 15,
-                    onValueChangeFinished = {
-                        scope.launch { repository.updateFontSize(fontSize) }
-                    }
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Line height
-                Text("行距: ${String.format("%.1f", lineHeight)}", style = MaterialTheme.typography.labelLarge)
-                Slider(
-                    value = lineHeight,
-                    onValueChange = { lineHeight = it },
-                    valueRange = 1.2f..2.5f,
-                    steps = 12,
-                    onValueChangeFinished = {
-                        scope.launch { repository.updateLineHeight(lineHeight) }
-                    }
-                )
             }
 
             // Encoding section
@@ -336,6 +280,30 @@ fun SettingsScreen(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = {
+                            uriHandler.openUri("https://qun.qq.com/universal-share/share?ac=1&authKey=U6H3i4hoAJq4wS%2FPON2W1VZqllWlvqwvR2JIIoluuYy1vb0UN6QryKTG5VZjXJAA&busi_data=eyJncm91cENvZGUiOiI5NjM0MTA1NSIsInRva2VuIjoickNqcnh3QXU3WCtycFlSSHZiNDNjYjFkU0tTdElydytvL0xzbUhRC82SU4xYnBxMDBjRkxJV3dPL1M5dE9lTCIsInVpbiI6Ijk2MzQ4NDM1MCJ9&data=SoU871UPiE7vVgnr2mFzYwmv-JGCKCvgDkKEiN2VGQfZuYUDi7_hh41SO6o3ljDbhap277SHrHkXWTSUUmDcJg&svctype=4&tempid=h5_group_info")
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("加入QQ群")
+                    }
+                    OutlinedButton(
+                        onClick = {
+                            uriHandler.openUri("https://github.com/guocheng1378/xiaoshuozhangjieshibieqi/releases/download")
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("加入更新")
+                    }
+                }
             }
         }
     }
