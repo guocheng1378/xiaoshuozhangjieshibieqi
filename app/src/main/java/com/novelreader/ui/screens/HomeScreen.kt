@@ -481,6 +481,7 @@ private suspend fun importFolder(
     zipDir.mkdirs()
     bookDir.mkdirs()
     var importCount = 0
+    val importedFiles = mutableListOf<Pair<String, String>>() // (path, name)
 
     // 先统计文件总数
     var totalCount = 0
@@ -553,7 +554,7 @@ private suspend fun importFolder(
                                 entry.inputStreamProvider().use { input ->
                                     localFile.outputStream().use { output -> input.copyTo(output) }
                                 }
-                                repository.addRecentFile(localFile.absolutePath, entry.name)
+                                importedFiles.add(localFile.absolutePath to entry.name)
                                 if (firstFile == null) {
                                     firstFile = localFile.absolutePath to entry.name
                                 }
@@ -576,7 +577,7 @@ private suspend fun importFolder(
                         context.contentResolver.openInputStream(file.uri)?.use { input ->
                             localFile.outputStream().use { output -> input.copyTo(output) }
                         }
-                        repository.addRecentFile(localFile.absolutePath, name)
+                        importedFiles.add(localFile.absolutePath to name)
                         if (firstFile == null) {
                             firstFile = localFile.absolutePath to name
                         }
@@ -591,6 +592,11 @@ private suspend fun importFolder(
     val timedOut = withTimeoutOrNull(120_000) {
         scanAndImport(folderUri)
     } == null
+
+    // 批量写入 DataStore（只写一次，不逐个写）
+    if (importedFiles.isNotEmpty()) {
+        repository.addRecentFiles(importedFiles)
+    }
 
     ImportResult(firstFile?.first, firstFile?.second, timedOut, importCount)
 }
