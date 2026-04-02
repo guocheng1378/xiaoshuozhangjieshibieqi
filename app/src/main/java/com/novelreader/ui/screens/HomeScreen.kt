@@ -40,6 +40,7 @@ fun HomeScreen(
     var isLoading by remember { mutableStateOf(true) }
     var importing by remember { mutableStateOf(false) }
     var importProgress by remember { mutableStateOf("") }
+    var deleteTarget by remember { mutableStateOf<BookFile?>(null) }
 
     LaunchedEffect(Unit) {
         repository.getRecentFiles().collect { files ->
@@ -305,7 +306,8 @@ fun HomeScreen(
                         items(recentFiles) { file ->
                             RecentFileItem(
                                 file = file,
-                                onClick = { onBookClick(file.filePath, file.fileName) }
+                                onClick = { onBookClick(file.filePath, file.fileName) },
+                                onDelete = { deleteTarget = file }
                             )
                         }
                     }
@@ -337,6 +339,34 @@ fun HomeScreen(
                     }
                 }
             }
+
+            // 删除确认对话框
+            deleteTarget?.let { target ->
+                AlertDialog(
+                    onDismissRequest = { deleteTarget = null },
+                    title = { Text("删除书籍") },
+                    text = { Text("确定要删除「${target.fileName}」吗？\n（将从列表中移除${if (!target.filePath.startsWith("content://")) "并删除本地文件" else ""}）") },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            val path = target.filePath
+                            if (!path.startsWith("content://")) {
+                                try { java.io.File(path).delete() } catch (_: Exception) {}
+                            }
+                            scope.launch {
+                                repository.removeRecentFile(path)
+                            }
+                            deleteTarget = null
+                        }) {
+                            Text("删除", color = MaterialTheme.colorScheme.error)
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { deleteTarget = null }) {
+                            Text("取消")
+                        }
+                    }
+                )
+            }
         }
     }
 }
@@ -344,7 +374,8 @@ fun HomeScreen(
 @Composable
 private fun RecentFileItem(
     file: BookFile,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onDelete: () -> Unit
 ) {
     Card(
         modifier = Modifier
@@ -386,11 +417,13 @@ private fun RecentFileItem(
                     overflow = TextOverflow.Ellipsis
                 )
             }
-            Icon(
-                Icons.Default.ChevronRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            IconButton(onClick = onDelete) {
+                Icon(
+                    Icons.Default.Delete,
+                    contentDescription = "删除",
+                    tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
+                )
+            }
         }
     }
 }
