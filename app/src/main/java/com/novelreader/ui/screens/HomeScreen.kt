@@ -111,7 +111,19 @@ fun HomeScreen(
         importProgress = "正在扫描文件夹..."
         scope.launch {
             try {
-                importFolder(context, uri, repository, onBookClick)
+                val result = importFolder(context, uri, repository, onBookClick)
+                if (result.timedOut) {
+                    importProgress = "导入超时，部分文件未导入"
+                    kotlinx.coroutines.delay(2000)
+                }
+                result.firstPath?.let { path ->
+                    onBookClick(path, result.firstName ?: "未知文件")
+                } ?: run {
+                    if (result.timedOut) {
+                        importProgress = "导入超时，未找到文件"
+                        kotlinx.coroutines.delay(2000)
+                    }
+                }
             } catch (e: Exception) {
                 e.printStackTrace()
                 importProgress = "导入出错，请重试"
@@ -417,7 +429,7 @@ private suspend fun importFolder(
     folderUri: Uri,
     repository: BookRepository,
     onBookClick: (String, String) -> Unit
-) = withContext(Dispatchers.IO) {
+): ImportResult = withContext(Dispatchers.IO) {
     var firstFile: Pair<String, String>? = null
     val zipDir = File(context.filesDir, "zip_books")
     val bookDir = File(context.filesDir, "books")
@@ -508,20 +520,11 @@ private suspend fun importFolder(
         scanAndImport(folderUri)
     } == null
 
-    firstFile?.let { (path, name) ->
-        withContext(Dispatchers.Main) {
-            if (timedOut) {
-                importProgress = "导入超时，部分文件未导入"
-                kotlinx.coroutines.delay(2000)
-            }
-            onBookClick(path, name)
-        }
-    } ?: run {
-        if (timedOut) {
-            withContext(Dispatchers.Main) {
-                importProgress = "导入超时，未找到文件"
-                kotlinx.coroutines.delay(2000)
-            }
-        }
-    }
+    ImportResult(firstFile?.first, firstFile?.second, timedOut)
 }
+
+private data class ImportResult(
+    val firstPath: String?,
+    val firstName: String?,
+    val timedOut: Boolean
+)
