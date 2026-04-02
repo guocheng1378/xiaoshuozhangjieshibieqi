@@ -15,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.novelreader.util.StoragePermissionChecker
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
@@ -38,6 +39,26 @@ fun FileBrowserScreen(
 ) {
     val context = LocalContext.current
     
+    StoragePermissionChecker {
+        FileBrowserContent(
+            initialPath = initialPath,
+            browseMode = browseMode,
+            onFileSelected = onFileSelected,
+            onFolderSelected = onFolderSelected,
+            onBack = onBack
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun FileBrowserContent(
+    initialPath: String? = null,
+    browseMode: BrowseMode = BrowseMode.FILES_AND_FOLDERS,
+    onFileSelected: (File) -> Unit,
+    onFolderSelected: (File) -> Unit,
+    onBack: () -> Unit
+) {
     // Get initial directory
     val startDir = remember {
         when {
